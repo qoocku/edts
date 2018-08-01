@@ -43,9 +43,9 @@ start_link() ->
                             {port, ?EDTS_PORT}]).
 
 
-handle_request(Req) ->
+handle_request(Req = {Mod, _}) ->
   try
-    case Req:get(method) of
+    case Mod:get(method, Req) of
       'POST' ->
         case do_handle_request(Req) of
           ok ->
@@ -73,8 +73,8 @@ format_term(Term) ->
 stacktrace() ->
   format_term(erlang:get_stacktrace()).
 
-do_handle_request(Req) ->
-  case [list_to_atom(E) || E <- string:tokens(Req:get(path), "/")] of
+do_handle_request(Req = {Mod, _}) ->
+  case [list_to_atom(E) || E <- string:tokens(Mod:get(path, Req), "/")] of
     [Command] ->
       edts_cmd:run(Command, get_input_context(Req));
     [plugins, Plugin, Command] ->
@@ -83,8 +83,8 @@ do_handle_request(Req) ->
       {error, {not_found, [{path, list_to_binary(Path)}]}}
   end.
 
-get_input_context(Req) ->
-  case Req:recv_body() of
+get_input_context(Req = {Mod, _}) ->
+  case Mod:recv_body(Req) of
     undefined ->
       orddict:new();
     <<"null">> ->
@@ -134,13 +134,13 @@ error(Req, Code, Message, Data) ->
           {data,    Data}],
   respond(Req, Code, Body).
 
-respond(Req, Code, Data) ->
+respond(Req = {Mod, _}, Code, Data) ->
   Headers = [{"Content-Type", "application/json"}],
   BodyString = case Data of
                  undefined -> "";
                  _         -> mochijson2:encode(Data)
                end,
-  Req:respond({Code, Headers, BodyString}).
+  Mod:respond({Code, Headers, BodyString}, Req).
 
 %%%_* Emacs ====================================================================
 %%% Local Variables:
