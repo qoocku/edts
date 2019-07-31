@@ -108,19 +108,20 @@ break(Module, Line, Break) ->
   {ok, do_break(Module, Line, Break)}.
 
 do_break(Module, Line, toggle) ->
-  do_break(Module, Line, not breakpoint_exists_p(Module, Line));
+    {ok, Bool} = breakpoint_exists_p(Module, Line),
+    do_break(Module, Line, not Bool);
 do_break(Module, Line, true) ->
   case module_interpreted_p(Module) of
-    false ->
-      case interpret_module(Module, true) of
-        {error, _} = E -> E;
-        true           ->
+      false ->
+          case interpret_module(Module, true) of
+              {error, _} = E -> E;
+              {ok, true} ->
+                  int:break(Module, Line),
+                  true
+          end;
+      true ->
           int:break(Module, Line),
           true
-      end;
-    true ->
-      int:break(Module, Line),
-      true
   end;
 do_break(Module, Line, false) ->
   int:delete_break(Module, Line),
@@ -134,7 +135,7 @@ do_break(Module, Line, false) ->
                           Line   :: non_neg_integer()) -> {ok, boolean()}.
 %%------------------------------------------------------------------------------
 breakpoint_exists_p(Module, Line) ->
-  {ok, lists:keymember({Module, Line}, 1, int:all_breaks())}.
+    {ok, lists:keymember({Module, Line}, 1, int:all_breaks())}.
 
 
 
@@ -279,10 +280,10 @@ do_interpret_module(Module, toggle) ->
   do_interpret_module(Module, not module_interpreted_p(Module));
 do_interpret_module(Module, true) ->
   case module_interpretable_p(Module) of
-    false -> {error, uninterpretable};
-    true  ->
-      {module, Module} = int:i(Module),
-      true
+      {ok, false} -> {error, uninterpretable};
+      {ok, true}  ->
+          {module, Module} = int:i(Module),
+          true
   end;
 do_interpret_module(Module, false) ->
   ok = int:n(Module),
@@ -307,8 +308,9 @@ interpreted_modules() ->
 -spec module_interpreted_p(Module :: module()) -> boolean().
 %%------------------------------------------------------------------------------
 module_interpreted_p(Module) ->
-  ensure_started(),
-  lists:member(Module, interpreted_modules()).
+    ensure_started(),
+    {ok, Modules} = interpreted_modules(),
+    lists:member(Module, Modules).
 
 %%------------------------------------------------------------------------------
 %% @doc
